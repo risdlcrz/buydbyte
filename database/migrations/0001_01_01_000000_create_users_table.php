@@ -12,28 +12,43 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
+            $table->uuid('user_id')->primary();
+            $table->string('first_name');
+            $table->string('last_name')->nullable();
             $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
+            $table->string('phone_number')->unique()->nullable();
             $table->string('password');
+            $table->enum('role', ['customer', 'admin', 'seller'])->default('customer');
+            $table->enum('status', ['active', 'inactive', 'banned', 'pending_verification'])->default('pending_verification');
+            $table->timestamp('email_verified_at')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });
 
-        Schema::create('password_reset_tokens', function (Blueprint $table) {
-            $table->string('email')->primary();
+        Schema::create('password_resets', function (Blueprint $table) {
+            $table->id('reset_id');
+            $table->uuid('user_id');
             $table->string('token');
-            $table->timestamp('created_at')->nullable();
+            $table->timestamp('expires_at');
+            $table->boolean('used')->default(false);
+            $table->timestamps();
+            
+            $table->foreign('user_id')->references('user_id')->on('users')->onDelete('cascade');
+            $table->index(['token', 'expires_at']);
         });
 
-        Schema::create('sessions', function (Blueprint $table) {
-            $table->string('id')->primary();
-            $table->foreignId('user_id')->nullable()->index();
-            $table->string('ip_address', 45)->nullable();
+        Schema::create('user_sessions', function (Blueprint $table) {
+            $table->id('session_id');
+            $table->uuid('user_id');
+            $table->string('session_token')->unique();
+            $table->ipAddress('ip_address')->nullable();
             $table->text('user_agent')->nullable();
-            $table->longText('payload');
-            $table->integer('last_activity')->index();
+            $table->timestamp('login_time');
+            $table->timestamp('logout_time')->nullable();
+            $table->timestamps();
+            
+            $table->foreign('user_id')->references('user_id')->on('users')->onDelete('cascade');
+            $table->index(['session_token', 'user_id']);
         });
     }
 
@@ -43,7 +58,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
-        Schema::dropIfExists('sessions');
+        Schema::dropIfExists('password_resets');
+        Schema::dropIfExists('user_sessions');
     }
 };
