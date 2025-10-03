@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\EmailVerification;
 use App\Models\AuditLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class VerificationController extends Controller

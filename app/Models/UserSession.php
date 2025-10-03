@@ -58,11 +58,4 @@ class UserSession extends Model
     {
         return is_null($this->logout_time);
     }
-}space App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-
-class UserSession extends Model
-{
-    //
 }
