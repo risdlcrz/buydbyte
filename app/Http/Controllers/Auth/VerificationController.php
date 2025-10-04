@@ -85,9 +85,11 @@ class VerificationController extends Controller
 
             // Send verification email with proper error handling
             try {
-                if (config('queue.default') === 'sync') {
+                if (config('app.env') === 'local' || config('queue.default') === 'sync') {
+                    // Send immediately in development
                     Mail::to($user->email)->send(new \App\Mail\Auth\VerifyEmail($user, $verificationToken));
                 } else {
+                    // Queue the email for background processing in production
                     Mail::to($user->email)->queue(new \App\Mail\Auth\VerifyEmail($user, $verificationToken));
                 }
                 

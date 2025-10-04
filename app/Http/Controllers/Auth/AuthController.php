@@ -133,13 +133,13 @@ class AuthController extends Controller
 
             DB::commit();
 
-            // Queue the verification email instead of sending synchronously
+            // Send verification email immediately in development, queue in production
             try {
-                if (config('queue.default') === 'sync') {
-                    // If using sync queue, send immediately but with timeout protection
+                if (config('app.env') === 'local' || config('queue.default') === 'sync') {
+                    // Send immediately in development
                     Mail::to($user->email)->send(new \App\Mail\Auth\VerifyEmail($user, $verificationToken));
                 } else {
-                    // Queue the email for background processing
+                    // Queue the email for background processing in production
                     Mail::to($user->email)->queue(new \App\Mail\Auth\VerifyEmail($user, $verificationToken));
                 }
             } catch (\Exception $e) {
