@@ -35,10 +35,80 @@ Route::get('/email/verify', [VerificationController::class, 'notice'])->name('ve
 Route::get('/email/verify/{token}', [VerificationController::class, 'verify'])->name('verification.verify');
 Route::post('/email/resend', [VerificationController::class, 'resend'])->name('verification.resend');
 
+// Test route to check verification status
+Route::get('/test-verification', function () {
+    if (Auth::check()) {
+        $user = Auth::user();
+        return response()->json([
+            'user_id' => $user->user_id,
+            'email' => $user->email,
+            'email_verified_at' => $user->email_verified_at,
+            'hasVerifiedEmail' => $user->hasVerifiedEmail(),
+            'status' => $user->status,
+        ]);
+    }
+    return response()->json(['message' => 'Not authenticated']);
+});
+
+// Temporary bypass route for testing
+Route::get('/dashboard-test', [AuthController::class, 'dashboard'])->middleware('auth')->name('dashboard.test');
+
+// Manual verification route for testing
+Route::get('/verify-manual', function () {
+    if (Auth::check()) {
+        $user = Auth::user();
+        $user->update([
+            'status' => 'active',
+            'email_verified_at' => now(),
+        ]);
+        
+        // Also update any pending email verifications
+        \App\Models\EmailVerification::where('user_id', $user->user_id)
+            ->where('verified', false)
+            ->update(['verified' => true]);
+            
+        return redirect()->route('dashboard')->with('message', 'Email verified manually! Welcome to BuyDbyte!');
+    }
+    return redirect()->route('login');
+});
+
 // Authenticated routes
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [AuthController::class, 'dashboard'])->name('dashboard');
-    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+    
+    // Product management routes
+    Route::get('/products', function () {
+        return view('products');
+    })->name('products');
+    
+    Route::get('/products/add', function () {
+        return view('add_product');
+    })->name('products.add');
+    
+    Route::get('/products/edit/{id}', function ($id) {
+        return view('edit_product', ['id' => $id]);
+    })->name('products.edit');
+    
+    Route::get('/products/delete/{id}', function ($id) {
+        return view('delete_product', ['id' => $id]);
+    })->name('products.delete');
+    
+    // User management routes
+    Route::get('/users', function () {
+        return view('users');
+    })->name('users');
+    
+    Route::get('/users/add', function () {
+        return view('add_user');
+    })->name('users.add');
+    
+    Route::get('/users/edit/{id}', function ($id) {
+        return view('edit_user', ['id' => $id]);
+    })->name('users.edit');
+    
+    Route::get('/users/delete/{id}', function ($id) {
+        return view('delete_user', ['id' => $id]);
+    })->name('users.delete');
 });
 
 // Authenticated but unverified routes

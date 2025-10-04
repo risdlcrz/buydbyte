@@ -166,4 +166,12 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(AuditLog::class, 'user_id', 'user_id');
     }
+
+    /**
+     * Check if the user has verified their email.
+     */
+    public function hasVerifiedEmail(): bool
+    {
+        return !is_null($this->email_verified_at);
+    }
 }

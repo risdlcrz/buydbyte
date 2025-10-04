@@ -75,19 +75,19 @@
         </h5>
         <div class="row">
             <div class="col-md-6">
-                <a href="#" class="btn btn-outline-primary w-100 mb-2">
-                    <i class="bi bi-person"></i> Edit Profile
+                <a href="{{ route('products') }}" class="btn btn-outline-primary w-100 mb-2">
+                    <i class="bi bi-box"></i> Manage Products
                 </a>
-                <a href="#" class="btn btn-outline-secondary w-100 mb-2">
-                    <i class="bi bi-geo-alt"></i> Manage Addresses
+                <a href="{{ route('products.add') }}" class="btn btn-outline-success w-100 mb-2">
+                    <i class="bi bi-plus-circle"></i> Add Product
                 </a>
             </div>
             <div class="col-md-6">
-                <a href="#" class="btn btn-outline-info w-100 mb-2">
-                    <i class="bi bi-bag-heart"></i> Browse Products
+                <a href="{{ route('users') }}" class="btn btn-outline-info w-100 mb-2">
+                    <i class="bi bi-people"></i> Manage Users
                 </a>
-                <a href="#" class="btn btn-outline-success w-100 mb-2">
-                    <i class="bi bi-cart"></i> View Cart
+                <a href="{{ route('users.add') }}" class="btn btn-outline-warning w-100 mb-2">
+                    <i class="bi bi-person-plus"></i> Add User
                 </a>
             </div>
         </div>

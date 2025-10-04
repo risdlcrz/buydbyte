@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\EmailVerification;
 use App\Models\AuditLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
@@ -44,7 +45,10 @@ class VerificationController extends Controller
 
         AuditLog::createLog('email_verified', $user->user_id);
 
-        return redirect()->route('login')->with('message', 'Email verified successfully! You can now login.');
+        // Auto-login the user after verification
+        Auth::login($user);
+
+        return redirect()->route('dashboard')->with('message', 'Email verified successfully! Welcome to BuyDbyte!');
     }
 
     /**

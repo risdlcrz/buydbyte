@@ -70,6 +70,11 @@ class AuthController extends Controller
 
             AuditLog::createLog('login_success', $user->user_id);
 
+            // Check if user has verified email
+            if (!$user->hasVerifiedEmail()) {
+                return redirect()->route('verification.notice');
+            }
+
             return redirect()->intended(route('dashboard'));
         }
 

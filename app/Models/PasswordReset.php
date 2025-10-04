@@ -64,11 +64,4 @@ class PasswordReset extends Model
     {
         return !$this->used && !$this->isExpired();
     }
-}space App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-
-class PasswordReset extends Model
-{
-    //
 }

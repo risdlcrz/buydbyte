@@ -65,11 +65,4 @@ class OtpCode extends Model
     {
         return !$this->used && !$this->isExpired();
     }
-}space App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-
-class OtpCode extends Model
-{
-    //
 }
