@@ -55,4 +55,17 @@
         </a>
     </p>
 </div>
+
+@if(config('app.debug'))
+<!-- Development Debug Info -->
+<div class="alert alert-info mt-4">
+    <h6><i class="bi bi-bug"></i> Development Debug Info</h6>
+    <small>
+        <strong>Mail Driver:</strong> {{ config('mail.default') }}<br>
+        <strong>SMTP Host:</strong> {{ config('mail.mailers.smtp.host') }}<br>
+        <strong>From Address:</strong> {{ config('mail.from.address') }}<br>
+        <strong>Queue Driver:</strong> {{ config('queue.default') }}
+    </small>
+</div>
+@endif
 @endsection

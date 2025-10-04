@@ -136,8 +136,16 @@
 
     <!-- Submit Button -->
     <div class="d-grid">
-        <button type="submit" class="btn btn-primary btn-lg">
-            <i class="bi bi-person-plus"></i> Create Account
+        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+            <span class="btn-text">
+                <i class="bi bi-person-plus"></i> Create Account
+            </span>
+            <span class="btn-loading d-none">
+                <div class="spinner-border spinner-border-sm me-2" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                Creating Account...
+            </span>
         </button>
     </div>
 
@@ -149,4 +157,35 @@
         </p>
     </div>
 </form>
+
+@section('additional_js')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = submitBtn.querySelector('.btn-text');
+    const btnLoading = submitBtn.querySelector('.btn-loading');
+    
+    form.addEventListener('submit', function(e) {
+        // Prevent double submission
+        if (submitBtn.disabled) {
+            e.preventDefault();
+            return false;
+        }
+        
+        // Show loading state
+        submitBtn.disabled = true;
+        btnText.classList.add('d-none');
+        btnLoading.classList.remove('d-none');
+        
+        // Re-enable button after 30 seconds in case of timeout
+        setTimeout(() => {
+            submitBtn.disabled = false;
+            btnText.classList.remove('d-none');
+            btnLoading.classList.add('d-none');
+        }, 30000);
+    });
+});
+</script>
+@endsection
 @endsection

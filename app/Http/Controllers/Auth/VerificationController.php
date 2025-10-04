@@ -61,22 +61,48 @@ class VerificationController extends Controller
             return back()->withErrors(['email' => 'Email is already verified.']);
         }
 
-        // Invalidate old tokens
-        EmailVerification::where('user_id', $user->user_id)->update(['verified' => true]);
+        // Check for recent resend attempts to prevent spam
+        $recentResend = AuditLog::where('action', 'verification_email_resent')
+            ->where('user_id', $user->user_id)
+            ->where('created_at', '>', now()->subMinutes(2))
+            ->exists();
+            
+        if ($recentResend) {
+            return back()->withErrors(['email' => 'Please wait 2 minutes before requesting another verification email.']);
+        }
 
-        // Create new verification token
-        $verificationToken = Str::random(60);
-        EmailVerification::create([
-            'user_id' => $user->user_id,
-            'token' => $verificationToken,
-            'expires_at' => now()->addHours(24),
-        ]);
+        try {
+            // Invalidate old tokens
+            EmailVerification::where('user_id', $user->user_id)->update(['verified' => true]);
 
-        // Send verification email (you'll need to create the mailable)
-        Mail::to($user->email)->send(new \App\Mail\Auth\VerifyEmail($user, $verificationToken));
+            // Create new verification token
+            $verificationToken = Str::random(60);
+            EmailVerification::create([
+                'user_id' => $user->user_id,
+                'token' => $verificationToken,
+                'expires_at' => now()->addHours(24),
+            ]);
 
-        AuditLog::createLog('verification_email_resent', $user->user_id);
-
-        return back()->with('message', 'Verification email sent! Please check your inbox.');
+            // Send verification email with proper error handling
+            try {
+                if (config('queue.default') === 'sync') {
+                    Mail::to($user->email)->send(new \App\Mail\Auth\VerifyEmail($user, $verificationToken));
+                } else {
+                    Mail::to($user->email)->queue(new \App\Mail\Auth\VerifyEmail($user, $verificationToken));
+                }
+                
+                AuditLog::createLog('verification_email_resent', $user->user_id);
+                
+                return back()->with('message', 'Verification email sent! Please check your inbox and spam folder.');
+                
+            } catch (\Exception $e) {
+                \Log::error('Failed to send verification email: ' . $e->getMessage());
+                return back()->withErrors(['email' => 'Failed to send verification email. Please try again later.']);
+            }
+            
+        } catch (\Exception $e) {
+            \Log::error('Resend verification failed: ' . $e->getMessage());
+            return back()->withErrors(['email' => 'Something went wrong. Please try again.']);
+        }
     }
 }

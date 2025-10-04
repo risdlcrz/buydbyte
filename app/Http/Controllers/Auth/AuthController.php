@@ -9,6 +9,7 @@ use App\Models\EmailVerification;
 use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -85,6 +86,18 @@ class AuthController extends Controller
      */
     public function register(Request $request)
     {
+        // Check for recent registration attempts from same IP to prevent spam
+        $recentAttempt = AuditLog::where('action', 'user_registered')
+            ->where('ip_address', $request->ip())
+            ->where('created_at', '>', now()->subMinutes(2))
+            ->exists();
+            
+        if ($recentAttempt) {
+            return back()->withErrors([
+                'email' => 'Please wait a moment before creating another account.',
+            ])->withInput($request->except('password', 'password_confirmation'));
+        }
+
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'nullable|string|max:255',
@@ -93,31 +106,57 @@ class AuthController extends Controller
             'password' => ['required', 'confirmed', Password::defaults()],
         ]);
 
-        // Create the user
-        $user = User::create([
-            'first_name' => $validated['first_name'],
-            'last_name' => $validated['last_name'],
-            'email' => $validated['email'],
-            'phone_number' => $validated['phone_number'],
-            'password' => Hash::make($validated['password']),
-            'role' => 'customer',
-            'status' => 'pending_verification',
-        ]);
+        try {
+            DB::beginTransaction();
 
-        // Create email verification token
-        $verificationToken = Str::random(60);
-        EmailVerification::create([
-            'user_id' => $user->user_id,
-            'token' => $verificationToken,
-            'expires_at' => now()->addHours(24),
-        ]);
+            // Create the user
+            $user = User::create([
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'email' => $validated['email'],
+                'phone_number' => $validated['phone_number'],
+                'password' => Hash::make($validated['password']),
+                'role' => 'customer',
+                'status' => 'pending_verification',
+            ]);
 
-        // Send verification email (you'll need to create the mailable)
-        Mail::to($user->email)->send(new \App\Mail\Auth\VerifyEmail($user, $verificationToken));
+            // Create email verification token
+            $verificationToken = Str::random(60);
+            EmailVerification::create([
+                'user_id' => $user->user_id,
+                'token' => $verificationToken,
+                'expires_at' => now()->addHours(24),
+            ]);
 
-        AuditLog::createLog('user_registered', $user->user_id);
+            // Log the registration
+            AuditLog::createLog('user_registered', $user->user_id);
 
-        return redirect()->route('verification.notice')->with('message', 'Registration successful! Please check your email to verify your account.');
+            DB::commit();
+
+            // Queue the verification email instead of sending synchronously
+            try {
+                if (config('queue.default') === 'sync') {
+                    // If using sync queue, send immediately but with timeout protection
+                    Mail::to($user->email)->send(new \App\Mail\Auth\VerifyEmail($user, $verificationToken));
+                } else {
+                    // Queue the email for background processing
+                    Mail::to($user->email)->queue(new \App\Mail\Auth\VerifyEmail($user, $verificationToken));
+                }
+            } catch (\Exception $e) {
+                // Log email error but don't fail registration
+                \Log::error('Failed to send verification email: ' . $e->getMessage());
+            }
+
+            return redirect()->route('verification.notice')->with('message', 'Registration successful! Please check your email to verify your account.');
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            \Log::error('Registration failed: ' . $e->getMessage());
+            
+            return back()->withErrors([
+                'email' => 'Registration failed. Please try again.',
+            ])->withInput($request->except('password', 'password_confirmation'));
+        }
     }
 
     /**
