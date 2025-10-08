@@ -123,4 +123,20 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Currency Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configure the currency settings for the application including the
+    | currency code, symbol, and locale for proper formatting.
+    |
+    */
+
+    'currency' => [
+        'code' => env('CURRENCY_CODE', 'PHP'),
+        'symbol' => env('CURRENCY_SYMBOL', '₱'),
+        'locale' => env('CURRENCY_LOCALE', 'en_PH'),
+    ],
+
 ];

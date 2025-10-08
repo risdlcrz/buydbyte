@@ -71,6 +71,11 @@ class AuthController extends Controller
 
             AuditLog::createLog('login_success', $user->user_id);
 
+            // Redirect based on user role
+            if ($user->isAdmin()) {
+                return redirect()->intended(route('admin.dashboard'));
+            }
+
             return redirect()->intended(route('dashboard'));
         }
 
@@ -186,6 +191,13 @@ class AuthController extends Controller
      */
     public function dashboard()
     {
+        $user = Auth::user();
+        
+        // Redirect admin users to admin dashboard
+        if ($user && $user->isAdmin()) {
+            return redirect()->route('admin.dashboard');
+        }
+        
         return view('dashboard');
     }
 }
