@@ -42,6 +42,7 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $fillable = [
         'first_name',
         'last_name',
+        'name', // Virtual attribute for compatibility
         'email',
         'phone_number',
         'password',
@@ -94,6 +95,14 @@ class User extends Authenticatable implements MustVerifyEmail
     public function getFullNameAttribute(): string
     {
         return trim($this->first_name . ' ' . $this->last_name);
+    }
+
+    /**
+     * Get the name attribute (alias for full_name).
+     */
+    public function getNameAttribute(): string
+    {
+        return $this->getFullNameAttribute();
     }
 
     /**
@@ -166,5 +175,21 @@ class User extends Authenticatable implements MustVerifyEmail
     public function auditLogs()
     {
         return $this->hasMany(AuditLog::class, 'user_id', 'user_id');
+    }
+
+    /**
+     * Get the cart items for the user.
+     */
+    public function cartItems()
+    {
+        return $this->hasMany(Cart::class, 'user_id', 'user_id');
+    }
+
+    /**
+     * Get the product comparisons for the user.
+     */
+    public function productComparisons()
+    {
+        return $this->hasMany(ProductComparison::class, 'user_id', 'user_id');
     }
 }

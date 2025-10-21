@@ -71,7 +71,8 @@ class AuthController extends Controller
 
             AuditLog::createLog('login_success', $user->user_id);
 
-            return redirect()->intended(route('dashboard'));
+            // Determine where to redirect the user based on role and intended URL
+            return $this->getPostLoginRedirect($request, $user);
         }
 
         AuditLog::createLog('login_failed', null, ['email' => $credentials['email']]);
@@ -186,6 +187,73 @@ class AuthController extends Controller
      */
     public function dashboard()
     {
+        $user = Auth::user();
+        
+        // Redirect admin users to admin dashboard
+        if ($user && $user->isAdmin()) {
+            return redirect()->route('admin.dashboard');
+        }
+        
         return view('dashboard');
+    }
+
+    /**
+     * Determine where to redirect user after successful login.
+     */
+    protected function getPostLoginRedirect(Request $request, User $user)
+    {
+        // For admin users, check if they were trying to access an admin page
+        if ($user->isAdmin()) {
+            $intendedUrl = $request->session()->get('url.intended');
+            if ($intendedUrl && str_contains($intendedUrl, '/admin')) {
+                return redirect($intendedUrl);
+            }
+            // Default admin redirect
+            return redirect()->route('admin.dashboard');
+        }
+
+        // For regular customers, check for intended URL from our middleware
+        $intendedUrl = $request->session()->get('intended_url');
+        
+        // Clear the intended URL from session
+        $request->session()->forget('intended_url');
+        $request->session()->forget('url.intended');
+
+        if ($intendedUrl) {
+            // Make sure the intended URL is safe and belongs to our domain
+            $parsedUrl = parse_url($intendedUrl);
+            $currentDomain = $request->getHost();
+            
+            if (!isset($parsedUrl['host']) || $parsedUrl['host'] === $currentDomain) {
+                // Exclude certain paths from redirect (like auth pages and AJAX endpoints)
+                $excludedPaths = [
+                    '/login',
+                    '/register', 
+                    '/password',
+                    '/email/verify',
+                    '/admin',
+                    '/dashboard',
+                    '/compare/count',    // AJAX endpoint
+                    '/cart/count',       // AJAX endpoint (if exists)
+                ];
+                
+                $path = $parsedUrl['path'] ?? '/';
+                $shouldRedirect = true;
+                
+                foreach ($excludedPaths as $excludedPath) {
+                    if (str_starts_with($path, $excludedPath)) {
+                        $shouldRedirect = false;
+                        break;
+                    }
+                }
+                
+                if ($shouldRedirect) {
+                    return redirect($intendedUrl);
+                }
+            }
+        }
+
+        // Default redirect for customers: homepage instead of dashboard
+        return redirect()->route('storefront.home');
     }
 }
