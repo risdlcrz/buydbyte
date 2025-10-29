@@ -35,6 +35,8 @@ Route::get('/cart/count', [CartController::class, 'count'])->name('cart.count');
 
 Route::prefix('checkout')->name('checkout.')->middleware(['auth'])->group(function () {
     Route::post('/process', [CheckoutController::class, 'process'])->name('process');
+    // Start checkout with selected cart items (stores selection then redirects to checkout page)
+    Route::post('/start', [CheckoutController::class, 'start'])->name('start');
     Route::get('/', [CheckoutController::class, 'index'])->name('index');
 });
 

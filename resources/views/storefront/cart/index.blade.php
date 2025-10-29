@@ -142,8 +142,8 @@
                         </div>
 
                         <div class="d-flex justify-content-between mb-3">
-                            <span>Subtotal ({{ $cartItems->sum('quantity') }} items):</span>
-                            <span class="fw-bold" id="cart-subtotal">{{ currency($total) }}</span>
+                            <span>Subtotal (<span id="selected-items-count">0 items</span>):</span>
+                            <span class="fw-bold" id="selected-subtotal">{{ currency(0) }}</span>
                         </div>
                         
                         <!-- Discount Line (hidden by default) -->
@@ -166,13 +166,17 @@
                         
                         <div class="d-flex justify-content-between mb-4">
                             <span class="h5">Total:</span>
-                            <span class="h5 text-primary" id="cart-total">{{ currency($total) }}</span>
+                            <span class="h5 text-primary" id="selected-total">{{ currency(0) }}</span>
                         </div>
 
                         @auth
-                            <button class="btn btn-primary w-100 mb-3">
-                                <i class="bi bi-credit-card"></i> Proceed to Checkout
-                            </button>
+                            <form id="checkout-form" method="POST" action="{{ route('checkout.start') }}">
+                                @csrf
+                                <input type="hidden" id="selected-items-input" name="selected_items" value="">
+                                <button type="submit" class="btn btn-primary w-100 mb-3" id="checkout-button" disabled>
+                                    <i class="bi bi-credit-card"></i> Proceed to Checkout
+                                </button>
+                            </form>
                         @else
                             <a href="{{ route('login') }}" class="btn btn-primary w-100 mb-3">
                                 <i class="bi bi-person"></i> Login to Checkout
@@ -211,6 +215,13 @@
 
 @push('scripts')
 <script>
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
+    }).format(amount);
+}
+
 function increaseQuantity(button) {
     const input = button.previousElementSibling;
     const max = parseInt(input.getAttribute('max'));
@@ -275,12 +286,12 @@ document.addEventListener('change', function(e) {
 
 // Handle discount updates
 document.addEventListener('DOMContentLoaded', function() {
-    const subtotalElement = document.getElementById('cart-subtotal');
-    const totalElement = document.getElementById('cart-total');
+    // Ensure formatCurrency is available and initialize selection
+    const selectedSubtotalElement = document.getElementById('selected-subtotal');
+    const selectedTotalElement = document.getElementById('selected-total');
     const discountLine = document.getElementById('discount-line');
     const discountAmount = document.getElementById('discount-amount');
     const discountCodeApplied = document.getElementById('discount-code-applied');
-    
     const originalSubtotal = {{ $total }};
     
     // Listen for discount events
@@ -307,21 +318,20 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update display
         discountCodeApplied.textContent = discount.code;
         discountAmount.textContent = '-' + formatCurrency(discountValue);
-        totalElement.textContent = formatCurrency(newTotal);
+        // Update selected display
+        selectedSubtotalElement.textContent = formatCurrency(Math.max(0, originalSubtotal - discountValue));
+        selectedTotalElement.textContent = formatCurrency(Math.max(0, originalSubtotal - discountValue));
         discountLine.classList.remove('d-none');
     }
     
     function resetCartTotals() {
-        totalElement.textContent = formatCurrency(originalSubtotal);
+        selectedSubtotalElement.textContent = formatCurrency(originalSubtotal);
+        selectedTotalElement.textContent = formatCurrency(originalSubtotal);
         discountLine.classList.add('d-none');
     }
     
-    function formatCurrency(amount) {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(amount);
-    }
+    // Ensure initial UI state reflects no selection (nothing selected by default)
+    updateSelectedItems();
 });
 </script>
 @endpush
