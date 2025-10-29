@@ -13,11 +13,33 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        // Create admin user
+        User::create([
+            'user_id' => \Illuminate\Support\Str::uuid()->toString(),
+            'first_name' => 'Admin',
+            'last_name' => 'User',
+            'email' => 'admin@buydbyte.com',
+            'password' => bcrypt('password'),
+            'phone_number' => '1111222233',
+            'role' => 'admin',
+            'status' => 'active'
+        ]);
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        // Create normal user
+        User::create([
+            'user_id' => \Illuminate\Support\Str::uuid()->toString(),
+            'first_name' => 'Test',
+            'last_name' => 'User',
+            'email' => 'test@buydbyte.com',
+            'password' => bcrypt('password'),
+            'phone_number' => '4444555566',
+            'role' => 'customer',
+            'status' => 'active'
+        ]);
+
+        // Run other seeders
+        $this->call([
+            CategoryAndProductSeeder::class,
         ]);
     }
 }

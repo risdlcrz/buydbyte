@@ -23,7 +23,13 @@
             <div class="col-lg-8">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Cart Items ({{ $cartItems->count() }})</h5>
+                        <div class="d-flex align-items-center">
+                            <div class="form-check me-3">
+                                <input class="form-check-input" type="checkbox" id="selectAll" onchange="toggleAllItems(this)">
+                                <label class="form-check-label" for="selectAll">Select All</label>
+                            </div>
+                            <h5 class="mb-0">Cart Items ({{ $cartItems->count() }})</h5>
+                        </div>
                         <form method="POST" action="{{ route('cart.clear') }}" 
                               onsubmit="return confirm('Are you sure you want to clear your cart?')">
                             @csrf
@@ -36,6 +42,15 @@
                     <div class="card-body p-0">
                         @foreach($cartItems as $item)
                         <div class="d-flex align-items-center p-4 border-bottom">
+                            <!-- Item Checkbox -->
+                            <div class="me-3">
+                                <div class="form-check">
+                                    <input class="form-check-input cart-item-checkbox" type="checkbox" 
+                                           id="item-{{ $item->cart_id }}" 
+                                           value="{{ $item->cart_id }}"
+                                           data-price="{{ $item->total }}">
+                                </div>
+                            </div>
                             <!-- Product Image -->
                             <div class="me-4">
                                 @if($item->product->main_image)
@@ -214,6 +229,49 @@ function decreaseQuantity(button) {
         input.form.submit();
     }
 }
+
+function toggleAllItems(checkbox) {
+    const itemCheckboxes = document.querySelectorAll('.cart-item-checkbox');
+    itemCheckboxes.forEach(item => {
+        item.checked = checkbox.checked;
+    });
+    updateSelectedItems();
+}
+
+function updateSelectedItems() {
+    const selectedCheckboxes = document.querySelectorAll('.cart-item-checkbox:checked');
+    const selectedItemsCount = document.getElementById('selected-items-count');
+    const selectedSubtotal = document.getElementById('selected-subtotal');
+    const selectedTotal = document.getElementById('selected-total');
+    const checkoutButton = document.getElementById('checkout-button');
+    const selectedItemsInput = document.getElementById('selected-items-input');
+    
+    // Count selected items
+    selectedItemsCount.textContent = `${selectedCheckboxes.length} items`;
+    
+    // Calculate total of selected items
+    let total = 0;
+    const selectedIds = [];
+    selectedCheckboxes.forEach(checkbox => {
+        total += parseFloat(checkbox.dataset.price);
+        selectedIds.push(checkbox.value);
+    });
+    
+    // Update display
+    selectedSubtotal.textContent = formatCurrency(total);
+    selectedTotal.textContent = formatCurrency(total);
+    
+    // Update hidden input and checkout button
+    selectedItemsInput.value = selectedIds.join(',');
+    checkoutButton.disabled = selectedCheckboxes.length === 0;
+}
+
+// Add event listeners for checkboxes
+document.addEventListener('change', function(e) {
+    if (e.target.matches('.cart-item-checkbox') || e.target.matches('#selectAll')) {
+        updateSelectedItems();
+    }
+});
 
 // Handle discount updates
 document.addEventListener('DOMContentLoaded', function() {

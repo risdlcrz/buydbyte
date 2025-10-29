@@ -303,10 +303,39 @@
     <!-- Cart Count Update -->
     <script>
         // Update cart count on page load
-        // This would normally be done with AJAX, but for simplicity we'll use a simple approach
         document.addEventListener('DOMContentLoaded', function() {
-            // You can implement AJAX cart count here
+            updateCartCount();
             updateComparisonCount();
+        });
+
+        function updateCartCount() {
+            fetch('{{ route("cart.count") }}', {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                const cartBadge = document.getElementById('cart-count');
+                if (cartBadge) {
+                    cartBadge.textContent = data.count;
+                    cartBadge.style.display = data.count > 0 ? 'inline' : 'none';
+                }
+            })
+            .catch(error => console.error('Error updating cart count:', error));
+        }
+
+        // Call updateCartCount after successful cart operations
+        document.addEventListener('submit', function(e) {
+            if (e.target.matches('form[action*="/cart/add"]') || 
+                e.target.matches('form[action*="/cart/update"]') ||
+                e.target.matches('form[action*="/cart/remove"]') ||
+                e.target.matches('form[action*="/cart/clear"]')) {
+                // Add a small delay to allow the server to process the request
+                setTimeout(updateCartCount, 500);
+            }
         });
 
         // Comparison functionality

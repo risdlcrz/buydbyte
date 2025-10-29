@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\VerificationController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\StorefrontController;
 use App\Http\Controllers\CartController;
+use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\ComparisonController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\UserController;
@@ -27,6 +28,14 @@ Route::prefix('cart')->name('cart.')->group(function () {
     Route::patch('/update/{cart}', [CartController::class, 'update'])->name('update');
     Route::delete('/remove/{cart}', [CartController::class, 'remove'])->name('remove');
     Route::delete('/clear', [CartController::class, 'clear'])->name('clear');
+});
+
+// Separate cart count route to avoid route group conflicts
+Route::get('/cart/count', [CartController::class, 'count'])->name('cart.count');
+
+Route::prefix('checkout')->name('checkout.')->middleware(['auth'])->group(function () {
+    Route::post('/process', [CheckoutController::class, 'process'])->name('process');
+    Route::get('/', [CheckoutController::class, 'index'])->name('index');
 });
 
 // Product Comparison Routes (for both guests and authenticated users)

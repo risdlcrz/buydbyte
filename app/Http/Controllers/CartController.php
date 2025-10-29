@@ -129,6 +129,17 @@ class CartController extends Controller
         return back()->with('success', 'Cart cleared successfully!');
     }
 
+    public function count()
+    {
+        $count = 0;
+        if (Auth::check()) {
+            $count = Cart::where('user_id', Auth::user()->user_id)->sum('quantity');
+        } else {
+            $count = Cart::where('session_id', session()->getId())->sum('quantity');
+        }
+        return response()->json(['count' => $count]);
+    }
+
     private function getCartItems()
     {
         if (Auth::check()) {
