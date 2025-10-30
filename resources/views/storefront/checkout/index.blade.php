@@ -158,10 +158,21 @@
 #selected-address-summary {
     background-color: #f8f9fa;
     transition: all 0.2s ease;
+    padding: 1rem;
 }
 
 #selected-address-summary:hover {
     background-color: #e9ecef;
+}
+
+#selected-address-text {
+    white-space: pre-line;
+    line-height: 1.5;
+}
+
+.address-item p {
+    margin-bottom: 0.25rem;
+    line-height: 1.4;
 }
 </style>
 @endpush
@@ -447,6 +458,16 @@
             <div class="toast-body" id="error-toast-body"></div>
         </div>
 
+        <!-- Success Toast -->
+        <div class="toast" id="success-toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
+            <div class="toast-header bg-success text-white">
+                <i class="bi bi-check-circle me-2"></i>
+                <strong class="me-auto">Success</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body" id="success-toast-body"></div>
+        </div>
+
         <!-- Loading Overlay -->
         <div id="loading-overlay" class="position-fixed top-0 start-0 w-100 h-100 d-none" style="background: rgba(255,255,255,0.8); z-index: 1050;">
             <div class="position-absolute top-50 start-50 translate-middle text-center">
@@ -519,6 +540,8 @@
 <script src="https://js.stripe.com/v3/"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize address form
+    initializeAddressForm();
     // Initialize Stripe Elements with better styling
     const stripe = Stripe('{{ config('services.stripe.key') }}');
     const elements = stripe.elements({
@@ -649,13 +672,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function buildAddressHtml(address) {
         const isDefaultBadge = address.is_default ? '<span class="badge bg-primary">Default</span>' : '';
+        
+        // Build formatted address string
+        const addressParts = [
+            address.street,
+            address.city,
+            address.state,
+            address.postal_code,
+            address.country
+        ].filter(Boolean);
+        const formattedAddress = addressParts.join(', ');
+        
         return `
             <div class="list-group-item address-item position-relative" data-address-id="${address.address_id}" data-fullname="${address.full_name}" data-street="${address.street}" data-city="${address.city}" data-state="${address.state}" data-postal="${address.postal_code}" data-country="${address.country}">
                 <div class="form-check">
                     <input class="form-check-input address-selector" type="radio" name="selected_address_radio" id="address-${address.address_id}" ${address.is_default ? 'checked' : ''}>
                     <label class="form-check-label w-100" for="address-${address.address_id}">
-                        <h6 class="mb-1">${address.full_name}</h6>
-                        <p class="mb-1 small text-muted">${address.formatted_address}</p>
+                        <h6 class="mb-1">${address.full_name || ''}</h6>
+                        <p class="mb-1 small text-muted">${formattedAddress}</p>
                         ${isDefaultBadge}
                     </label>
                 </div>
@@ -688,19 +722,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function selectAddressFromItem(parent) {
         if (!parent) return;
+        
+        // Get all address data
         const id = parent.dataset.addressId || '';
         const fullname = parent.dataset.fullname || '';
         const street = parent.dataset.street || '';
         const city = parent.dataset.city || '';
         const state = parent.dataset.state || '';
         const postal = parent.dataset.postal || '';
+        const country = parent.dataset.country || '';
 
-        // Populate summary and hidden fields
-        const summaryText = [fullname, street, city, state, postal].filter(Boolean).join(', ');
+        // Build formatted address string
+        const addressParts = [
+            street,
+            city,
+            state,
+            postal,
+            country
+        ].filter(Boolean);
+        
+        // Combine address with name for summary
+        const summaryText = [
+            fullname,
+            addressParts.join(', ')
+        ].filter(Boolean).join('\n');
+
+        // Update display and form fields
         const selectedTextEl = document.getElementById('selected-address-text');
-        if (selectedTextEl) selectedTextEl.textContent = summaryText;
+        if (selectedTextEl) {
+            selectedTextEl.innerHTML = summaryText.replace(/\n/g, '<br>');
+            selectedTextEl.style.whiteSpace = 'pre-line';
+        }
+        
         const selectedIdEl = document.getElementById('selected-address-id');
         if (selectedIdEl) selectedIdEl.value = id;
+        
         const formAddressEl = document.getElementById('form-address-id');
         if (formAddressEl) formAddressEl.value = id;
 
@@ -814,10 +870,20 @@ document.addEventListener('DOMContentLoaded', function() {
         keyboard: false
     });
     
-    // Handle address form submission via AJAX
-    const addressForm = document.getElementById('address-form');
-    if (addressForm) {
-        addressForm.addEventListener('submit', async function(ev) {
+    // Initialize address form handler
+    function initializeAddressForm() {
+        const addressForm = document.getElementById('address-form');
+        if (!addressForm) {
+            console.error('Address form not found');
+            return;
+        }
+        
+        // Remove any existing listeners to prevent duplicates
+        const newForm = addressForm.cloneNode(true);
+        addressForm.parentNode.replaceChild(newForm, addressForm);
+        
+        // Add submit handler
+        newForm.addEventListener('submit', async function(ev) {
             ev.preventDefault();
             ev.stopPropagation();
             
@@ -825,18 +891,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const originalText = submitBtn.innerHTML;
             
             try {
-                // Disable form submission
+                // Disable form submission and show loading state
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
                 
-                // Prepare form data
+                // Get the form data and method
                 const formData = new FormData(this);
-                const method = this.querySelector('input[name="_method"]').value || 'POST';
-                if (method.toUpperCase() === 'PUT') {
-                    formData.append('_method', 'PUT');
-                }
-            try {
-                // Submit form
+                const method = (document.getElementById('address-form-method').value || 'POST').toUpperCase();
+                
+                // Make the AJAX request
                 const response = await fetch(this.action, {
                     method: 'POST',
                     headers: {
@@ -847,55 +910,96 @@ document.addEventListener('DOMContentLoaded', function() {
                     body: formData
                 });
 
-                const data = await response.json();
-                
+                // Handle non-OK responses
                 if (!response.ok) {
+                    const data = await response.json();
                     throw new Error(data.message || 'Failed to save address');
                 }
+
+                // Parse the successful response
+                const data = await response.json();
                 const address = data.address;
                 
-                // If no addresses yet, clear the empty state message
-                const emptyState = document.querySelector('.address-list .text-center');
+                // Get reference to the address list
+                const addressList = document.querySelector('.address-list');
+                if (!addressList) {
+                    throw new Error('Address list container not found');
+                }
+
+                // Remove empty state message if it exists
+                const emptyState = addressList.querySelector('.text-center');
                 if (emptyState) {
                     emptyState.remove();
                 }
-                
-                // Update the address list
-                const addressList = document.querySelector('.address-list');
+
+                // Generate new address HTML
                 const newAddressHtml = buildAddressHtml(address);
                 
-                if (method.toUpperCase() === 'PUT') {
-                    // Update existing address in the list
+                // Update DOM based on operation type
+                if (method === 'PUT') {
+                    // Update existing address
                     const existingAddress = addressList.querySelector(`[data-address-id="${address.address_id}"]`);
                     if (existingAddress) {
-                        existingAddress.outerHTML = newAddressHtml;
+                        // Create a temporary container to parse HTML
+                        const temp = document.createElement('div');
+                        temp.innerHTML = newAddressHtml;
+                        // Replace existing address with new one
+                        existingAddress.replaceWith(temp.firstElementChild);
                     }
                 } else {
-                    // Add new address to the list
+                    // Add new address
                     addressList.insertAdjacentHTML('beforeend', newAddressHtml);
                 }
                 
-                // If address is default or there's no selected address yet, update summary
-                if (address.is_default || !document.getElementById('selected-address-id').value) {
-                    document.getElementById('selected-address-text').textContent = address.formatted_address;
-                    document.getElementById('selected-address-id').value = address.address_id;
-                    document.getElementById('form-address-id').value = address.address_id;
+                // Update selected address if this is default or first address
+                const selectedIdInput = document.getElementById('selected-address-id');
+                if (address.is_default || !selectedIdInput || !selectedIdInput.value) {
+                    const selectedText = document.getElementById('selected-address-text');
+                    if (selectedText) selectedText.textContent = address.formatted_address;
+                    if (selectedIdInput) selectedIdInput.value = address.address_id;
+                    
+                    const formAddressId = document.getElementById('form-address-id');
+                    if (formAddressId) formAddressId.value = address.address_id;
                 }
                 
-                // reset form but keep modal open
+                // Reset form state
+                this.reset();
                 document.getElementById('address-form-title').textContent = 'Add / Edit Address';
-                addressForm.action = '{{ route('checkout.address.store') }}';
+                this.action = '{{ route('checkout.address.store') }}';
                 document.getElementById('address-form-method').value = 'POST';
-                addressForm.reset();
+                document.getElementById('address-form-id').value = '';
                 document.getElementById('addr-country').value = 'Philippines';
+
+                // Remove editing state from all addresses
+                document.querySelectorAll('.address-item').forEach(item => {
+                    item.classList.remove('editing');
+                });
+
+                // Rebind event handlers for the updated address list
+                bindAddressButtons();
+
+                // Show success message
+                const successToast = new bootstrap.Toast(document.getElementById('success-toast'));
+                document.getElementById('success-toast-body').textContent = 'Address saved successfully';
+                successToast.show();
             } catch (err) {
                 console.error('Address save error:', err);
-                alert(err.message || 'Failed to save address');
+                // Show error message in toast
+                const errorToast = new bootstrap.Toast(document.getElementById('error-toast'));
+                document.getElementById('error-toast-body').textContent = err.message || 'Failed to save address';
+                errorToast.show();
             } finally {
-                // Re-enable form submission
-                const submitBtn = document.getElementById('address-form-save');
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = 'Save';
+                // Re-enable form submission and reset button state
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+                // Make sure modal is still accessible
+                const addressModal = document.getElementById('addressModal');
+                if (addressModal && !addressModal.classList.contains('show')) {
+                    addressModal.classList.add('show');
+                    addressModal.style.display = 'block';
+                }
             }
         });
     }
