@@ -38,6 +38,10 @@ Route::prefix('checkout')->name('checkout.')->middleware(['auth'])->group(functi
     // Start checkout with selected cart items (stores selection then redirects to checkout page)
     Route::post('/start', [CheckoutController::class, 'start'])->name('start');
     Route::get('/', [CheckoutController::class, 'index'])->name('index');
+    // Address management for checkout (create, update, delete)
+    Route::post('/address', [CheckoutController::class, 'storeAddress'])->name('address.store');
+    Route::put('/address/{address}', [CheckoutController::class, 'updateAddress'])->name('address.update');
+    Route::delete('/address/{address}', [CheckoutController::class, 'destroyAddress'])->name('address.destroy');
 });
 
 // Product Comparison Routes (for both guests and authenticated users)

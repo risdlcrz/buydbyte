@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Cart;
+use App\Models\Address;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Auth;
@@ -35,7 +36,91 @@ class CheckoutController extends Controller
         // Get available shipping methods
         $shippingMethods = $this->getShippingMethods($cartItems);
 
-        return view('storefront.checkout.index', compact('cartItems', 'total', 'shippingMethods'));
+        // Load user addresses for the modal
+        $user = Auth::user();
+        $addresses = $user ? $user->addresses()->get() : collect();
+        $defaultAddress = $user ? $user->defaultAddress()->first() : null;
+
+        return view('storefront.checkout.index', compact('cartItems', 'total', 'shippingMethods', 'addresses', 'defaultAddress'));
+    }
+
+    /**
+     * Store a new address for the authenticated user (AJAX expected)
+     */
+    public function storeAddress(Request $request)
+    {
+        $request->validate([
+            'full_name' => 'required|string|max:255',
+            'street' => 'required|string|max:1024',
+            'city' => 'required|string|max:255',
+            'state' => 'nullable|string|max:255',
+            'postal_code' => 'nullable|string|max:50',
+            'country' => 'nullable|string|max:255',
+        ]);
+
+        $user = Auth::user();
+
+        $address = new Address();
+        $address->user_id = $user->user_id;
+        $address->full_name = $request->input('full_name');
+        $address->street = $request->input('street');
+        $address->city = $request->input('city');
+        $address->state = $request->input('state');
+        $address->postal_code = $request->input('postal_code');
+        $address->country = $request->input('country', 'Philippines');
+        $address->is_default = $request->has('is_default') ? boolval($request->input('is_default')) : false;
+        $address->save();
+
+        // If marked default, clear others
+        if ($address->is_default) {
+            Address::where('user_id', $user->user_id)->where('address_id', '!=', $address->address_id)->update(['is_default' => false]);
+        }
+
+        return response()->json(['message' => 'Address saved', 'address' => $address], 201);
+    }
+
+    /**
+     * Update an existing address (AJAX expected)
+     */
+    public function updateAddress(Request $request, $addressId)
+    {
+        $user = Auth::user();
+        $address = Address::where('address_id', $addressId)->where('user_id', $user->user_id)->firstOrFail();
+
+        $request->validate([
+            'full_name' => 'required|string|max:255',
+            'street' => 'required|string|max:1024',
+            'city' => 'required|string|max:255',
+            'state' => 'nullable|string|max:255',
+            'postal_code' => 'nullable|string|max:50',
+            'country' => 'nullable|string|max:255',
+        ]);
+
+        $address->full_name = $request->input('full_name');
+        $address->street = $request->input('street');
+        $address->city = $request->input('city');
+        $address->state = $request->input('state');
+        $address->postal_code = $request->input('postal_code');
+        $address->country = $request->input('country', 'Philippines');
+        $address->is_default = $request->has('is_default') ? boolval($request->input('is_default')) : $address->is_default;
+        $address->save();
+
+        if ($address->is_default) {
+            Address::where('user_id', $user->user_id)->where('address_id', '!=', $address->address_id)->update(['is_default' => false]);
+        }
+
+        return response()->json(['message' => 'Address updated', 'address' => $address], 200);
+    }
+
+    /**
+     * Destroy / delete an address belonging to the user
+     */
+    public function destroyAddress(Request $request, $addressId)
+    {
+        $user = Auth::user();
+        $address = Address::where('address_id', $addressId)->where('user_id', $user->user_id)->firstOrFail();
+        $address->delete();
+        return response()->json(['message' => 'Address deleted'], 200);
     }
 
     /**
@@ -73,7 +158,12 @@ class CheckoutController extends Controller
         // Get available shipping methods (mock API call)
         $shippingMethods = $this->getShippingMethods($cartItems);
 
-        return view('storefront.checkout.index', compact('cartItems', 'total', 'shippingMethods'));
+        // Load addresses for the modal
+        $user = Auth::user();
+        $addresses = $user ? $user->addresses()->get() : collect();
+        $defaultAddress = $user ? $user->defaultAddress()->first() : null;
+
+        return view('storefront.checkout.index', compact('cartItems', 'total', 'shippingMethods', 'addresses', 'defaultAddress'));
     }
 
     private function getShippingMethods($cartItems)
