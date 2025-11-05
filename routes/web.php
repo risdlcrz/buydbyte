@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\PromotionController;
+use App\Http\Controllers\NotificationController;
 
 // Public Storefront Routes
 Route::get('/', [StorefrontController::class, 'index'])->name('storefront.home');
@@ -87,6 +88,38 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [AuthController::class, 'dashboard'])->name('dashboard');
     Route::get('/account', [AuthController::class, 'dashboard'])->name('account'); // Alternative route for customer dashboard
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+    // Notifications
+    Route::get('/notifications/get', [NotificationController::class, 'index'])->name('notifications.get');
+    Route::post('/notifications/mark-as-read', [NotificationController::class, 'markAllRead'])->name('notifications.markAsRead');
+
+    // Customer Notifications
+    Route::prefix('customer')->name('customer.')->group(function () {
+        Route::get('/notifications', [App\Http\Controllers\Customer\NotificationController::class, 'index'])->name('notifications.index');
+        Route::post('/notifications/mark-read', [App\Http\Controllers\Customer\NotificationController::class, 'markAsRead'])->name('notifications.markAsRead');
+        
+            // Feedback
+            Route::get('/feedback', [App\Http\Controllers\Customer\FeedbackController::class, 'index'])->name('feedback.index');
+            Route::get('/feedback/create', [App\Http\Controllers\Customer\FeedbackController::class, 'create'])->name('feedback.create');
+            Route::post('/feedback', [App\Http\Controllers\Customer\FeedbackController::class, 'store'])->name('feedback.store');
+            Route::get('/feedback/{feedback}', [App\Http\Controllers\Customer\FeedbackController::class, 'show'])->name('feedback.show');
+        });
+
+    // Admin notification center (web UI)
+    Route::prefix('admin')->name('admin.')->group(function () {
+        Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::post('notifications/mark-all-as-read', [NotificationController::class, 'markAllRead'])->name('notifications.markAllAsRead');
+        Route::post('notifications/clear-read', [NotificationController::class, 'clearRead'])->name('notifications.clearRead');
+        Route::post('notifications/{id}/mark-as-read', [NotificationController::class, 'markRead'])->name('notifications.markAsRead');
+    });
+
+    // Finance notification center (web UI) - guarded by auth; controller enforces role check
+    Route::prefix('finance')->name('finance.')->group(function () {
+        Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::post('notifications/mark-all-as-read', [NotificationController::class, 'markAllRead'])->name('notifications.markAllAsRead');
+        Route::post('notifications/clear-read', [NotificationController::class, 'clearRead'])->name('notifications.clearRead');
+        Route::post('notifications/{id}/mark-as-read', [NotificationController::class, 'markRead'])->name('notifications.markAsRead');
+    });
 });
 
 // Authenticated but unverified routes
@@ -94,7 +127,16 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 });
 
-// Admin Routes
+// Finance Routes
+Route::middleware(['auth', 'verified'])->prefix('finance')->name('finance.')->group(function () {
+    // Finance Notifications (only payment notifications)
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead'])->name('notifications.markAsRead');
+    Route::post('notifications/mark-all-as-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllAsRead');
+    Route::post('notifications/clear-read', [NotificationController::class, 'clearRead'])->name('notifications.clearRead');
+});
+
+    // Admin Routes
 Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     // Admin Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
@@ -111,7 +153,18 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.'
     // Promotion Management
     Route::resource('promotions', PromotionController::class);
     
-    // Attribute Definition Management
+    // Admin Notifications
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead'])->name('notifications.markAsRead');
+    Route::post('notifications/mark-all-as-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllAsRead');
+    Route::post('notifications/clear-read', [NotificationController::class, 'clearRead'])->name('notifications.clearRead');    // Attribute Definition Management
+    // Feedback metrics
+    Route::get('feedback/metrics', [App\Http\Controllers\Admin\FeedbackMetricsController::class, 'index'])->name('feedback.metrics');
+    
+    // Admin feedback management
+    Route::get('feedback', [App\Http\Controllers\Admin\FeedbackController::class, 'index'])->name('feedback.index');
+    Route::get('feedback/{feedback}', [App\Http\Controllers\Admin\FeedbackController::class, 'show'])->name('feedback.show');
+    Route::post('feedback/{feedback}/respond', [App\Http\Controllers\Admin\FeedbackController::class, 'respond'])->name('feedback.respond');
     Route::resource('attributes', \App\Http\Controllers\Admin\AttributeDefinitionController::class);
     Route::post('attributes/{attribute}/toggle-status', [\App\Http\Controllers\Admin\AttributeDefinitionController::class, 'toggleStatus'])
         ->name('attributes.toggle-status');

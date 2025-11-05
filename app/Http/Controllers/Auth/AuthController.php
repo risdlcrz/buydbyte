@@ -71,6 +71,11 @@ class AuthController extends Controller
 
             AuditLog::createLog('login_success', $user->user_id);
 
+            // Example: Notify user of new device/login (account security)
+            // You can enable this to inform users about new logins or suspicious activity.
+            // use App\Notifications\AccountSecurityNotification;
+            // $user->notify(new AccountSecurityNotification('New login to your account from ' . $request->ip(), ['ip' => $request->ip(), 'user_agent' => $request->userAgent()]));
+
             // Determine where to redirect the user based on role and intended URL
             return $this->getPostLoginRedirect($request, $user);
         }

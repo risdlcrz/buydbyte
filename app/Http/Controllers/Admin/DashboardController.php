@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Product;
 use App\Models\Category;
 use App\Models\Cart;
+use App\Models\Feedback;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
@@ -32,6 +33,11 @@ class DashboardController extends Controller
             ->take(5)
             ->get();
 
-        return view('admin.dashboard', compact('stats', 'recent_users', 'recent_products'));
+        // Feedback metrics
+        $totalFeedback = Feedback::count();
+        $averageRating = round((float) Feedback::avg('rating'), 2) ?? 0.0;
+        $pendingFeedback = Feedback::where('status', 'pending')->count();
+
+        return view('admin.dashboard', compact('stats', 'recent_users', 'recent_products', 'totalFeedback', 'averageRating', 'pendingFeedback'));
     }
 }

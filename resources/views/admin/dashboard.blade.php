@@ -154,6 +154,28 @@
     </div>
 </div>
 
+<!-- Feedback Metrics -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h6 class="mb-1">Total Feedback</h6>
+            <h3 class="mb-0">{{ $totalFeedback ?? 0 }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h6 class="mb-1">Average Rating</h6>
+            <h3 class="mb-0">{{ $averageRating ?? '0.00' }} / 5</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h6 class="mb-1">Pending Feedback</h6>
+            <h3 class="mb-0">{{ $pendingFeedback ?? 0 }}</h3>
+        </div>
+    </div>
+</div>
+
 <!-- Activity Overview -->
 <div class="row mb-4">
     <div class="col-md-6">

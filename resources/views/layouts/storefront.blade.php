@@ -22,6 +22,10 @@
             --primary-color: #667eea;
             --secondary-color: #764ba2;
             --accent-color: #f093fb;
+            --success-color: #48bb78;
+            --warning-color: #ed8936;
+            --danger-color: #ef4444;
+            --info-color: #4299e1;
         }
         
         .navbar-brand {
@@ -173,6 +177,26 @@
                         <a class="nav-link" href="{{ route('storefront.products') }}">
                             <i class="bi bi-grid"></i> Products
                         </a>
+                    </li>
+
+                    <!-- Notifications -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link position-relative" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-bell"></i>
+                            <span class="cart-badge" id="notification-count" style="display: none;">0</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end notification-dropdown" style="width: 300px;">
+                            <li>
+                                <h6 class="dropdown-header">Notifications</h6>
+                            </li>
+                            <div id="notifications-list">
+                                <li><p class="dropdown-item text-muted mb-0">No new notifications</p></li>
+                            </div>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item text-center" href="{{ route('customer.notifications.index') }}">View all notifications</a>
+                            </li>
+                        </ul>
                     </li>
                     
                     <!-- Cart -->
@@ -443,6 +467,111 @@
                 }
             }, 4000);
         }
+    </script>
+
+    <!-- Notifications JavaScript -->
+    <script>
+        function getNotificationIcon(type) {
+            const icons = {
+                'payment_status': '<i class="bi bi-credit-card text-primary fs-5"></i>',
+                'payment_reminder': '<i class="bi bi-clock text-warning fs-5"></i>',
+                'order_status': '<i class="bi bi-box-seam text-info fs-5"></i>',
+                'promotion': '<i class="bi bi-tag text-success fs-5"></i>',
+                'price_drop': '<i class="bi bi-graph-down-arrow text-danger fs-5"></i>',
+                'feedback_response': '<i class="bi bi-chat-dots text-primary fs-5"></i>',
+                'account_security': '<i class="bi bi-shield-lock text-secondary fs-5"></i>',
+                'shipping_tracking': '<i class="bi bi-truck text-info fs-5"></i>',
+                'back_in_stock': '<i class="bi bi-arrow-repeat text-success fs-5"></i>',
+                'review_request': '<i class="bi bi-star text-warning fs-5"></i>',
+                'loyalty_points': '<i class="bi bi-gift text-success fs-5"></i>',
+            };
+            return icons[type] || '<i class="bi bi-bell text-secondary fs-5"></i>';
+        }
+
+        function getPaymentStatusBadge(notification) {
+            if (!notification || !notification.type) return '';
+            if (!notification.type.includes('payment')) return '';
+
+            const status = notification.status || notification.data?.status || '';
+            const badges = {
+                'pending': '<div class="mt-1"><span class="badge bg-warning">Pending</span></div>',
+                'processing': '<div class="mt-1"><span class="badge bg-info">Processing</span></div>',
+                'completed': '<div class="mt-1"><span class="badge bg-success">Completed</span></div>',
+                'failed': '<div class="mt-1"><span class="badge bg-danger">Failed</span></div>',
+                'refunded': '<div class="mt-1"><span class="badge bg-secondary">Refunded</span></div>',
+                'partially_refunded': '<div class="mt-1"><span class="badge bg-info">Partially Refunded</span></div>',
+                'due': '<div class="mt-1"><span class="badge bg-warning">Payment Due</span></div>',
+                'overdue': '<div class="mt-1"><span class="badge bg-danger">Overdue</span></div>'
+            };
+            return badges[status] || '';
+        }
+
+        function updateNotifications() {
+            fetch('{{ route("notifications.get") }}', {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                const notificationBadge = document.getElementById('notification-count');
+                const notificationsList = document.getElementById('notifications-list');
+                
+                if (data.unread_count > 0) {
+                    notificationBadge.textContent = data.unread_count;
+                    notificationBadge.style.display = 'inline';
+                } else {
+                    notificationBadge.style.display = 'none';
+                }
+
+                if (data.notifications && data.notifications.length > 0) {
+                    notificationsList.innerHTML = data.notifications
+                        .map(notification => `
+                            <li>
+                                <a class="dropdown-item" href="${notification.link || '#'}">
+                                    <div class="d-flex align-items-center">
+                                        <div class="flex-shrink-0">
+                                            ${getNotificationIcon(notification.type)}
+                                        </div>
+                                        <div class="flex-grow-1 ms-3">
+                                            <p class="mb-0">${notification.message}</p>
+                                            <small class="text-muted">${notification.time_ago}</small>
+                                            ${getPaymentStatusBadge(notification)}
+                                        </div>
+                                        ${!notification.read ? '<span class="badge bg-primary">New</span>' : ''}
+                                    </div>
+                                </a>
+                            </li>
+                        `).join('');
+                } else {
+                    notificationsList.innerHTML = '<li><p class="dropdown-item text-muted mb-0">No new notifications</p></li>';
+                }
+            })
+            .catch(error => console.error('Error updating notifications:', error));
+        }
+
+        // Update notifications on page load and every minute
+        document.addEventListener('DOMContentLoaded', function() {
+            updateNotifications();
+            setInterval(updateNotifications, 60000); // Check every minute
+        });
+
+        // Mark notifications as read when dropdown is opened
+        document.querySelector('.notification-dropdown').addEventListener('show.bs.dropdown', function () {
+            fetch('{{ route("notifications.markAsRead") }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                }
+            })
+            .then(() => updateNotifications())
+            .catch(error => console.error('Error marking notifications as read:', error));
+        });
     </script>
     
     @stack('scripts')

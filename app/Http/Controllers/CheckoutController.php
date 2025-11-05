@@ -166,6 +166,15 @@ class CheckoutController extends Controller
         return view('storefront.checkout.index', compact('cartItems', 'total', 'shippingMethods', 'addresses', 'defaultAddress'));
     }
 
+    // NOTE: Payment processing usually happens in a separate controller/action or via webhook from the payment gateway.
+    // Below are examples/placeholders showing where to trigger payment-related notifications:
+    // - When an order is created but payment is pending -> send PaymentReminderNotification
+    // - When payment is confirmed (webhook/admin confirms) -> send PaymentStatusNotification
+    // Example (commented):
+    // use App\Notifications\PaymentReminderNotification;
+    // $order = // create order here
+    // $order->user->notify(new PaymentReminderNotification($order, now()->addDays(3), $order->total));
+
     private function getShippingMethods($cartItems)
     {
         // Mock shipping methods - in production, this would call a real shipping API

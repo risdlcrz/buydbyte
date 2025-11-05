@@ -147,6 +147,8 @@ class ProductController extends Controller
             }
         }
 
+        $wasInStock = $product->in_stock;
+
         $product->update([
             'name' => $request->name,
             'description' => $request->description,
@@ -164,6 +166,20 @@ class ProductController extends Controller
             'manage_stock' => $request->boolean('manage_stock'),
             'in_stock' => $request->manage_stock ? $request->stock_quantity > 0 : true,
         ]);
+
+        // If product was out of stock and now is back in stock, trigger back-in-stock notifications
+        if (! $wasInStock && ($request->manage_stock ? $request->stock_quantity > 0 : true)) {
+            // Example: notify subscribers or interested users
+            // You should implement a subscription model (e.g., product_back_in_stock_subscriptions table)
+            // Example code (commented):
+            // use App\Notifications\BackInStockNotification;
+            // $subscribedUsers = \App\Models\User::whereHas('backInStockSubscriptions', function($q) use ($product) {
+            //     $q->where('product_id', $product->product_id);
+            // })->get();
+            // foreach ($subscribedUsers as $u) {
+            //     $u->notify(new BackInStockNotification($product));
+            // }
+        }
 
         return redirect()->route('admin.products.index')
             ->with('success', 'Product updated successfully.');
