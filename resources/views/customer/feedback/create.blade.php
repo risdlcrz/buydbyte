@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.storefront')
 
 @section('content')
 <div class="container mt-4">
@@ -62,7 +62,7 @@
                                 @for($i = 5; $i >= 1; $i--)
                                     <input type="radio" id="star{{ $i }}" name="rating" value="{{ $i }}" />
                                     <label for="star{{ $i }}" title="{{ $i }} stars">
-                                        <i class="fas fa-star"></i>
+                                        <i class="bi bi-star star-icon"></i>
                                     </label>
                                 @endfor
                             </div>
@@ -95,8 +95,9 @@
 .star-rating {
     display: flex;
     flex-direction: row-reverse;
-    gap: 0.3rem;
+    gap: 0.5rem;
     justify-content: flex-end;
+    align-items: center;
 }
 
 .star-rating input {
@@ -105,13 +106,21 @@
 
 .star-rating label {
     cursor: pointer;
-    color: #ddd;
-    font-size: 1.5rem;
+    margin: 0;
+    padding: 0;
+    line-height: 1;
 }
 
-.star-rating input:checked ~ label,
-.star-rating label:hover,
-.star-rating label:hover ~ label {
+.star-rating label .star-icon {
+    font-size: 2rem;
+    color: #ddd;
+    transition: all 0.2s ease;
+    display: block;
+}
+
+.star-rating input:checked ~ label .star-icon,
+.star-rating label:hover .star-icon,
+.star-rating label:hover ~ label .star-icon {
     color: #ffd700;
 }
 </style>
@@ -154,6 +163,53 @@ document.addEventListener('DOMContentLoaded', function() {
                     select.innerHTML += `<option value="${product.product_id}">${product.name}</option>`;
                 });
             });
+    }
+
+    // Star rating functionality
+    const starInputs = document.querySelectorAll('.star-rating input[type="radio"]');
+    const starLabels = document.querySelectorAll('.star-rating label');
+    
+    function updateStars(selectedValue) {
+        starLabels.forEach((label, index) => {
+            const starIcon = label.querySelector('.star-icon');
+            const starValue = 6 - index; // Reverse order (5, 4, 3, 2, 1)
+            
+            if (starValue <= selectedValue) {
+                starIcon.classList.remove('bi-star');
+                starIcon.classList.add('bi-star-fill');
+            } else {
+                starIcon.classList.remove('bi-star-fill');
+                starIcon.classList.add('bi-star');
+            }
+        });
+    }
+    
+    starInputs.forEach(input => {
+        input.addEventListener('change', function() {
+            updateStars(parseInt(this.value));
+        });
+        
+        input.addEventListener('mouseenter', function() {
+            const value = parseInt(this.value);
+            updateStars(value);
+        });
+    });
+    
+    // Reset stars on mouse leave (if nothing is selected)
+    const starRating = document.querySelector('.star-rating');
+    starRating.addEventListener('mouseleave', function() {
+        const checked = document.querySelector('.star-rating input:checked');
+        if (checked) {
+            updateStars(parseInt(checked.value));
+        } else {
+            updateStars(0);
+        }
+    });
+    
+    // Initialize stars if there's a previously selected value
+    const checkedStar = document.querySelector('.star-rating input:checked');
+    if (checkedStar) {
+        updateStars(parseInt(checkedStar.value));
     }
 });
 </script>
