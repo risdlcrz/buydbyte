@@ -24,14 +24,32 @@ class OrderPlacedNotification extends Notification
 
     public function toDatabase($notifiable): array
     {
+        $isCustomer = isset($notifiable->user_id) && $notifiable->user_id === $this->order->user_id;
+        
+        // Get customer name safely
+        $customerName = 'Customer';
+        if (isset($this->order->user)) {
+            if (isset($this->order->user->name)) {
+                $customerName = $this->order->user->name;
+            } elseif (isset($this->order->user->email)) {
+                $customerName = $this->order->user->email;
+            }
+        }
+        
+        $message = $isCustomer 
+            ? "Your order #{$this->order->order_number} has been placed successfully."
+            : "Order #{$this->order->order_number} has been placed by {$customerName}.";
+        
         return [
             'title' => 'Order Placed',
-            'message' => "Order #{$this->order->order_number} has been placed.",
-            'order_id' => $this->order->id,
+            'message' => $message,
+            'order_id' => $this->order->order_id,
             'order_number' => $this->order->order_number,
-            'amount' => $this->order->total_amount,
-            'customer_name' => $this->order->user->full_name,
-            'link' => route('admin.orders.show', $this->order->id)
+            'amount' => $this->order->total,
+            'customer_name' => $customerName,
+            'link' => $isCustomer 
+                ? route('customer.orders.show', $this->order->order_id)
+                : '#'
         ];
     }
 }

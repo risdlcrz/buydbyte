@@ -15,12 +15,12 @@
                         <div class="mb-4">
                             <label class="form-label">Type of Feedback</label>
                             <div class="btn-group w-100" role="group">
-                                <input type="radio" class="btn-check" name="type" id="type-general" value="general" checked>
+                                <input type="radio" class="btn-check" name="type" id="type-general" value="general" {{ $selectedOrder ? '' : 'checked' }}>
                                 <label class="btn btn-outline-primary" for="type-general">
                                     <i class="fas fa-comment me-2"></i>General
                                 </label>
 
-                                <input type="radio" class="btn-check" name="type" id="type-order" value="order">
+                                <input type="radio" class="btn-check" name="type" id="type-order" value="order" {{ $selectedOrder ? 'checked' : '' }}>
                                 <label class="btn btn-outline-primary" for="type-order">
                                     <i class="fas fa-shopping-cart me-2"></i>Order
                                 </label>
@@ -42,7 +42,7 @@
                             <select class="form-select" name="order_id" id="order_id">
                                 <option value="">Select an order</option>
                                 @foreach($orders as $order)
-                                    <option value="{{ $order->order_id }}">
+                                    <option value="{{ $order->order_id }}" {{ $selectedOrder && $selectedOrder->order_id === $order->order_id ? 'selected' : '' }}>
                                         Order #{{ $order->order_number }} - {{ $order->created_at->format('M d, Y') }}
                                     </option>
                                 @endforeach
@@ -123,6 +123,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const typeRadios = document.querySelectorAll('input[name="type"]');
     const orderSelect = document.getElementById('orderSelect');
     const productSelect = document.getElementById('productSelect');
+    
+    // Show order select if order type is selected or if selectedOrder exists
+    const selectedType = document.querySelector('input[name="type"]:checked');
+    if (selectedType && selectedType.value === 'order') {
+        orderSelect.classList.remove('d-none');
+    }
     
     typeRadios.forEach(radio => {
         radio.addEventListener('change', function() {

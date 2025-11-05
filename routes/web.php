@@ -98,12 +98,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/notifications', [App\Http\Controllers\Customer\NotificationController::class, 'index'])->name('notifications.index');
         Route::post('/notifications/mark-read', [App\Http\Controllers\Customer\NotificationController::class, 'markAsRead'])->name('notifications.markAsRead');
         
-            // Feedback
-            Route::get('/feedback', [App\Http\Controllers\Customer\FeedbackController::class, 'index'])->name('feedback.index');
-            Route::get('/feedback/create', [App\Http\Controllers\Customer\FeedbackController::class, 'create'])->name('feedback.create');
-            Route::post('/feedback', [App\Http\Controllers\Customer\FeedbackController::class, 'store'])->name('feedback.store');
-            Route::get('/feedback/{feedback}', [App\Http\Controllers\Customer\FeedbackController::class, 'show'])->name('feedback.show');
-        });
+        // Orders
+        Route::get('/orders', [App\Http\Controllers\Customer\OrderController::class, 'index'])->name('orders.index');
+        Route::get('/orders/{order}', [App\Http\Controllers\Customer\OrderController::class, 'show'])->name('orders.show');
+        Route::post('/orders/{order}/receive', [App\Http\Controllers\Customer\OrderController::class, 'receive'])->name('orders.receive');
+        Route::post('/orders/{order}/complete', [App\Http\Controllers\Customer\OrderController::class, 'complete'])->name('orders.complete');
+        Route::get('/orders/{order}/track', [App\Http\Controllers\Customer\OrderController::class, 'track'])->name('orders.track');
+        
+        // Feedback
+        Route::get('/feedback', [App\Http\Controllers\Customer\FeedbackController::class, 'index'])->name('feedback.index');
+        Route::get('/feedback/create', [App\Http\Controllers\Customer\FeedbackController::class, 'create'])->name('feedback.create');
+        Route::post('/feedback', [App\Http\Controllers\Customer\FeedbackController::class, 'store'])->name('feedback.store');
+        Route::get('/feedback/{feedback}', [App\Http\Controllers\Customer\FeedbackController::class, 'show'])->name('feedback.show');
+    });
 
     // Admin notification center (web UI)
     Route::prefix('admin')->name('admin.')->group(function () {

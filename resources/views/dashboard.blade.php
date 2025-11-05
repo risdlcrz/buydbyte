@@ -70,6 +70,22 @@
             </div>
         </div>
         <div class="col-md-3 mb-4">
+            <a href="{{ route('customer.orders.index') }}" class="text-decoration-none">
+                <div class="card border-0 shadow-sm h-100" style="transition: transform 0.2s;">
+                    <div class="card-body text-center">
+                        <div class="rounded-circle bg-success bg-opacity-10 d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                            <i class="bi bi-bag-check text-success" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <h5 class="card-title text-dark">My Orders</h5>
+                        <h2 class="text-success mb-0">
+                            {{ Auth::user()->orders()->count() }}
+                        </h2>
+                        <small class="text-muted">Total orders</small>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3 mb-4">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body text-center">
                     <div class="rounded-circle bg-success bg-opacity-10 d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
@@ -137,11 +153,94 @@
                                 <span class="badge bg-info ms-2" id="compare-badge">{{ Auth::user()->productComparisons()->count() }}</span>
                             </a>
                         </div>
+                        <div class="col-md-4">
+                            <a href="{{ route('customer.orders.index') }}" class="btn btn-outline-primary w-100 py-3">
+                                <i class="bi bi-bag-check me-2"></i>
+                                View Orders
+                                @php
+                                    $pendingOrders = Auth::user()->orders()->where('status', 'delivered')->count();
+                                @endphp
+                                @if($pendingOrders > 0)
+                                    <span class="badge bg-warning ms-2">{{ $pendingOrders }}</span>
+                                @endif
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Recent Orders -->
+    @php
+        $recentOrders = Auth::user()->orders()->with('items')->latest()->take(5)->get();
+    @endphp
+    @if($recentOrders->count() > 0)
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent border-0 py-4 d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">
+                        <i class="bi bi-clock-history me-2"></i>
+                        Recent Orders
+                    </h4>
+                    <a href="{{ route('customer.orders.index') }}" class="btn btn-sm btn-primary">
+                        View All Orders <i class="bi bi-arrow-right ms-1"></i>
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Order Number</th>
+                                    <th>Date</th>
+                                    <th>Items</th>
+                                    <th>Total</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($recentOrders as $order)
+                                <tr>
+                                    <td>
+                                        <strong>#{{ $order->order_number }}</strong>
+                                    </td>
+                                    <td>{{ $order->created_at->format('M d, Y') }}</td>
+                                    <td>{{ $order->items->count() }} item(s)</td>
+                                    <td><strong class="text-primary">{{ currency($order->total) }}</strong></td>
+                                    <td>
+                                        <span class="badge bg-{{ 
+                                            $order->status === 'completed' || $order->status === 'received' || $order->status === 'delivered' ? 'success' : 
+                                            ($order->status === 'cancelled' ? 'danger' : 'warning') 
+                                        }}">
+                                            {{ ucfirst($order->status) }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a href="{{ route('customer.orders.show', $order->order_id) }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye me-1"></i>View
+                                        </a>
+                                        @if($order->status === 'delivered')
+                                            <form action="{{ route('customer.orders.receive', $order->order_id) }}" method="POST" class="d-inline">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-success">
+                                                    <i class="bi bi-check-circle me-1"></i>Received
+                                                </button>
+                                            </form>
+                                        @endif
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 
     <!-- Account Information & Recent Activity -->
     <div class="row">

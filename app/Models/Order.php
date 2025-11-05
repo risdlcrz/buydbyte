@@ -24,6 +24,9 @@ class Order extends Model
         'tracking_number',
         'shipping_address',
         'payment_intent_id',
+        'order_number',
+        'payment_status',
+        'payment_method',
     ];
 
     protected $casts = [
@@ -43,6 +46,23 @@ class Order extends Model
             if (empty($model->tracking_number)) {
                 $model->tracking_number = 'TRK' . strtoupper(Str::random(10));
             }
+            if (empty($model->order_number)) {
+                // Generate unique order number
+                $maxAttempts = 10;
+                $attempt = 0;
+                do {
+                    $orderNumber = 'ORD-' . date('Ymd') . '-' . strtoupper(Str::random(8));
+                    $exists = static::where('order_number', $orderNumber)->exists();
+                    $attempt++;
+                } while ($exists && $attempt < $maxAttempts);
+                
+                if ($exists) {
+                    // Fallback to timestamp-based number if random fails
+                    $orderNumber = 'ORD-' . date('YmdHis') . '-' . strtoupper(Str::random(4));
+                }
+                
+                $model->order_number = $orderNumber;
+            }
         });
     }
 
@@ -59,5 +79,15 @@ class Order extends Model
     public function tracking()
     {
         return $this->hasMany(OrderTracking::class, 'order_id', 'order_id');
+    }
+
+    public function feedback()
+    {
+        return $this->hasOne(Feedback::class, 'order_id', 'order_id');
+    }
+
+    public function canBeCompleted()
+    {
+        return $this->status === 'delivered' && !$this->feedback;
     }
 }

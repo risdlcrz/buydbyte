@@ -10,6 +10,8 @@ class OrderTracking extends Model
 {
     use HasFactory;
 
+    protected $table = 'order_tracking';
+    
     protected $primaryKey = 'tracking_id';
     protected $keyType = 'string';
     public $incrementing = false;

@@ -222,12 +222,14 @@
                                 {{ auth()->user()->first_name }}
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="{{ route('account') }}">My Account</a></li>
+                                <li><a class="dropdown-item" href="{{ route('account') }}"><i class="bi bi-person me-2"></i>My Account</a></li>
+                                <li><a class="dropdown-item" href="{{ route('customer.orders.index') }}"><i class="bi bi-bag-check me-2"></i>My Orders</a></li>
+                                <li><a class="dropdown-item" href="{{ route('customer.feedback.index') }}"><i class="bi bi-star me-2"></i>My Feedback</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
                                     <form method="POST" action="{{ route('logout') }}">
                                         @csrf
-                                        <button type="submit" class="dropdown-item">Logout</button>
+                                        <button type="submit" class="dropdown-item"><i class="bi bi-box-arrow-right me-2"></i>Logout</button>
                                     </form>
                                 </li>
                             </ul>

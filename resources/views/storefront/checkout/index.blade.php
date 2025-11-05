@@ -1092,16 +1092,6 @@
             if (!shippingMethod) errors.push('Please select a shipping method');
             if (!paymentMethod) errors.push('Please select a payment method');
 
-            if (paymentMethod === 'card' && card) {
-                const { error, paymentMethod: pm } = await stripe.createPaymentMethod({
-                    type: 'card',
-                    card: card
-                });
-                if (error) {
-                    errors.push('Card error: ' + error.message);
-                }
-            }
-
             if (errors.length > 0) {
                 showToast('error', errors.join('\n'));
                 return;
@@ -1113,12 +1103,81 @@
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
 
-            // Submit form
+            // Prepare form data
+            const formData = new FormData(form);
+            
+            // Add payment method info if card was used
+            if (paymentMethod === 'card' && card) {
+                try {
+                    const { error, paymentMethod: pm } = await stripe.createPaymentMethod({
+                        type: 'card',
+                        card: card
+                    });
+                    if (error) {
+                        throw new Error('Card error: ' + error.message);
+                    }
+                    formData.append('payment_method_id', pm.id);
+                } catch (error) {
+                    console.error('Payment method creation error:', error);
+                    showToast('error', error.message || 'Payment processing failed');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Place Order';
+                    document.getElementById('loading-overlay').classList.remove('show');
+                    return;
+                }
+            }
+
+            // Submit form via AJAX
             try {
-                form.submit();
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': config.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    },
+                    body: formData
+                });
+
+                // Check if response is OK
+                if (!response.ok) {
+                    // Try to parse error message
+                    let errorMessage = 'Order processing failed';
+                    let errorDetails = null;
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorData.message || errorMessage;
+                        errorDetails = errorData.message || errorData.details;
+                    } catch (e) {
+                        // If not JSON, use status text
+                        errorMessage = response.statusText || errorMessage;
+                    }
+                    
+                    // Show detailed error in console for debugging
+                    console.error('Order processing failed:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        error: errorMessage,
+                        details: errorDetails
+                    });
+                    
+                    throw new Error(errorMessage);
+                }
+
+                // Parse JSON response
+                const data = await response.json();
+
+                // Success - redirect to order page
+                if (data.redirect) {
+                    window.location.href = data.redirect;
+                } else if (data.order_id) {
+                    window.location.href = `/customer/orders/${data.order_id}`;
+                } else {
+                    window.location.href = '/customer/orders';
+                }
             } catch (error) {
                 console.error('Order submission error:', error);
-                showToast('error', 'An error occurred while processing your order. Please try again.');
+                showToast('error', error.message || 'An error occurred while processing your order. Please try again.');
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Place Order';
                 document.getElementById('loading-overlay').classList.remove('show');

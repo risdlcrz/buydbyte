@@ -8,8 +8,10 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
 use App\Notifications\NewFeedbackNotification;
+use App\Notifications\OrderCompletedNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class FeedbackController extends Controller
@@ -24,14 +26,22 @@ class FeedbackController extends Controller
         return view('customer.feedback.index', compact('feedback'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
+        $orderId = $request->query('order_id');
+        
         $orders = Auth::user()->orders()
             ->whereDoesntHave('feedback')
+            ->whereIn('status', ['delivered', 'received'])
             ->latest()
             ->get();
 
-        return view('customer.feedback.create', compact('orders'));
+        $selectedOrder = null;
+        if ($orderId) {
+            $selectedOrder = $orders->firstWhere('order_id', $orderId);
+        }
+
+        return view('customer.feedback.create', compact('orders', 'selectedOrder'));
     }
 
     public function store(Request $request)
@@ -55,9 +65,37 @@ class FeedbackController extends Controller
             $admin->notify(new NewFeedbackNotification($feedback));
         }
 
+        // If feedback is for an order, mark the order as completed
+        if ($request->has('order_id') && $request->order_id) {
+            $order = Order::where('order_id', $request->order_id)
+                ->where('user_id', Auth::id())
+                ->where('status', 'received')
+                ->first();
+            
+            if ($order) {
+                try {
+                    $order->status = 'completed';
+                    $order->save();
+
+                    // Create tracking entry
+                    $tracking = new \App\Models\OrderTracking();
+                    $tracking->order_id = $order->order_id;
+                    $tracking->status = 'completed';
+                    $tracking->description = 'Order completed by customer with feedback';
+                    $tracking->location = 'Customer';
+                    $tracking->save();
+
+                    // Send completion notification
+                    $order->user->notify(new OrderCompletedNotification($order));
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to mark order as completed: ' . $e->getMessage());
+                }
+            }
+        }
+
         return redirect()
             ->route('customer.feedback.index')
-            ->with('success', 'Thank you for your feedback! We will review it shortly.');
+            ->with('success', 'Thank you for your feedback! Your order has been marked as completed.');
     }
 
     public function show(Feedback $feedback)

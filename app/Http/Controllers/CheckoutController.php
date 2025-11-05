@@ -4,9 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\Cart;
 use App\Models\Address;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\OrderTracking;
+use App\Notifications\OrderPlacedNotification;
+use App\Notifications\PaymentStatusNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CheckoutController extends Controller
 {
@@ -141,6 +148,24 @@ class CheckoutController extends Controller
 
     public function process(Request $request)
     {
+        try {
+            $request->validate([
+                'selected_items' => 'required|string',
+                'shipping_method' => 'required|string',
+                'address_id' => 'required|string',
+                'payment_method' => 'required|string|in:card,gcash,cod',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'error' => 'Validation failed',
+                    'message' => $e->getMessage(),
+                    'errors' => $e->errors()
+                ], 422);
+            }
+            throw $e;
+        }
+
         $selectedItems = explode(',', $request->selected_items);
         
         // Verify cart items belong to user
@@ -150,20 +175,187 @@ class CheckoutController extends Controller
             ->get();
 
         if ($cartItems->isEmpty()) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['error' => 'No items selected for checkout'], 400);
+            }
             return back()->with('error', 'No items selected for checkout');
         }
 
-        $total = $cartItems->sum('total');
-
-        // Get available shipping methods (mock API call)
+        // Get shipping method details
         $shippingMethods = $this->getShippingMethods($cartItems);
+        $selectedShipping = collect($shippingMethods)->firstWhere('id', $request->shipping_method);
+        
+        if (!$selectedShipping) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['error' => 'Invalid shipping method selected'], 400);
+            }
+            return back()->with('error', 'Invalid shipping method selected');
+        }
 
-        // Load addresses for the modal
-        $user = Auth::user();
-        $addresses = $user ? $user->addresses()->get() : collect();
-        $defaultAddress = $user ? $user->defaultAddress()->first() : null;
+        // Get address
+        $address = Address::where('address_id', $request->address_id)
+            ->where('user_id', auth()->id())
+            ->first();
+        
+        if (!$address) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['error' => 'Delivery address not found'], 404);
+            }
+            return back()->with('error', 'Delivery address not found');
+        }
 
-        return view('storefront.checkout.index', compact('cartItems', 'total', 'shippingMethods', 'addresses', 'defaultAddress'));
+        // Calculate totals
+        $subtotal = $cartItems->sum('total');
+        $shippingCost = $selectedShipping['price'];
+        $total = $subtotal + $shippingCost;
+
+        // Process payment
+        $paymentStatus = $this->processPayment($request->payment_method, $total);
+        
+        if ($paymentStatus === 'failed') {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['error' => 'Payment processing failed. Please try again.'], 400);
+            }
+            return back()->with('error', 'Payment processing failed. Please try again.');
+        }
+
+        // Create order in a transaction
+        try {
+            DB::beginTransaction();
+
+            // Create order
+            $order = new Order();
+            $order->user_id = auth()->id();
+            $order->status = 'pending';
+            $order->shipping_method = $request->shipping_method;
+            $order->shipping_cost = $shippingCost;
+            $order->subtotal = $subtotal;
+            $order->total = $total;
+            $order->payment_status = $paymentStatus;
+            $order->payment_method = $request->payment_method;
+            $order->shipping_address = [
+                'full_name' => isset($address->full_name) ? $address->full_name : '',
+                'street' => isset($address->street) ? $address->street : '',
+                'city' => isset($address->city) ? $address->city : '',
+                'state' => isset($address->state) ? $address->state : '',
+                'postal_code' => isset($address->postal_code) ? $address->postal_code : '',
+                'country' => isset($address->country) ? $address->country : 'Philippines',
+            ];
+            
+            // Generate payment intent ID for card payments
+            if ($request->payment_method === 'card' && $paymentStatus === 'paid') {
+                $order->payment_intent_id = 'pi_' . strtoupper(\Illuminate\Support\Str::random(24));
+            }
+            
+            $order->save();
+
+            // Create order items
+            foreach ($cartItems as $cartItem) {
+                if (!$cartItem->product) {
+                    throw new \Exception("Product not found for cart item {$cartItem->cart_id}");
+                }
+                
+                $orderItem = new OrderItem();
+                $orderItem->order_id = $order->order_id;
+                $orderItem->product_id = $cartItem->product_id;
+                $orderItem->product_name = isset($cartItem->product->name) ? $cartItem->product->name : 'Unknown Product';
+                $orderItem->price = $cartItem->price;
+                $orderItem->quantity = $cartItem->quantity;
+                $orderItem->save();
+            }
+
+            // Create initial tracking entry
+            $tracking = new OrderTracking();
+            $tracking->order_id = $order->order_id;
+            $tracking->status = 'pending';
+            $tracking->description = 'Order placed and awaiting processing';
+            $tracking->location = 'Warehouse';
+            $tracking->save();
+
+            // Remove cart items
+            Cart::whereIn('cart_id', $selectedItems)->delete();
+
+            // Clear checkout session
+            session()->forget('checkout.selected_items');
+
+            DB::commit();
+
+            // Refresh order to get relationships
+            $order->refresh();
+            $order->load('user');
+
+            // Send notifications (wrapped in try-catch to prevent notification failures from breaking order)
+            try {
+                if (isset($order->user) && $order->user) {
+                    $order->user->notify(new OrderPlacedNotification($order));
+                    
+                    if ($paymentStatus === 'paid') {
+                        $order->user->notify(new PaymentStatusNotification($order, 'paid', $total, $request->payment_method));
+                    }
+                }
+            } catch (\Exception $notificationError) {
+                \Log::warning('Notification failed for order ' . $order->order_id . ': ' . $notificationError->getMessage());
+                // Don't fail the order if notification fails
+            }
+
+            // Handle AJAX requests
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Order placed successfully! Order #' . $order->order_number,
+                    'order_id' => $order->order_id,
+                    'order_number' => $order->order_number,
+                    'redirect' => route('customer.orders.show', $order->order_id)
+                ]);
+            }
+
+            return redirect()->route('customer.orders.show', $order->order_id)
+                ->with('success', 'Order placed successfully! Order #' . $order->order_number);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Order processing error: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            
+            $errorMessage = config('app.debug') 
+                ? $e->getMessage() 
+                : 'An error occurred while processing your order. Please try again.';
+            
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'error' => $errorMessage,
+                    'message' => config('app.debug') ? $e->getMessage() : 'Order processing failed'
+                ], 500);
+            }
+            
+            return back()->with('error', $errorMessage);
+        }
+    }
+
+    /**
+     * Simulate payment processing
+     */
+    private function processPayment($paymentMethod, $amount)
+    {
+        // Simulate payment processing
+        // In production, this would integrate with actual payment gateways
+        
+        switch ($paymentMethod) {
+            case 'card':
+                // Simulate card payment - 90% success rate
+                return (rand(1, 10) <= 9) ? 'paid' : 'failed';
+            
+            case 'gcash':
+                // GCash payments are pending until confirmed
+                return 'processing';
+            
+            case 'cod':
+                // COD payments are pending until delivery
+                return 'pending';
+            
+            default:
+                return 'failed';
+        }
     }
 
     // NOTE: Payment processing usually happens in a separate controller/action or via webhook from the payment gateway.
