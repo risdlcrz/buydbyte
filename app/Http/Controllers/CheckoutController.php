@@ -30,12 +30,29 @@ class CheckoutController extends Controller
 
         // Ensure we only load items that belong to the authenticated user
         $cartItems = Cart::whereIn('cart_id', $selectedIds)
-            ->where('user_id', Auth::id())
+            ->where('user_id', Auth::user()->user_id)
             ->with('product')
             ->get();
 
         if ($cartItems->isEmpty()) {
             return redirect()->route('cart.index')->with('error', 'Selected cart items could not be found.');
+        }
+
+        // Validate that all products are still available
+        foreach ($cartItems as $cartItem) {
+            if (!$cartItem->product) {
+                return redirect()->route('cart.index')->with('error', 'One or more products are no longer available.');
+            }
+            
+            if (!$cartItem->product->is_active || !$cartItem->product->in_stock) {
+                return redirect()->route('cart.index')
+                    ->with('error', "Product {$cartItem->product->name} is no longer available.");
+            }
+            
+            if ($cartItem->product->manage_stock && $cartItem->quantity > $cartItem->product->stock_quantity) {
+                return redirect()->route('cart.index')
+                    ->with('error', "Insufficient stock for {$cartItem->product->name}");
+            }
         }
 
         $total = $cartItems->sum('total');
@@ -170,7 +187,7 @@ class CheckoutController extends Controller
         
         // Verify cart items belong to user
         $cartItems = Cart::whereIn('cart_id', $selectedItems)
-            ->where('user_id', auth()->id())
+            ->where('user_id', Auth::user()->user_id)
             ->with('product')
             ->get();
 
@@ -179,6 +196,30 @@ class CheckoutController extends Controller
                 return response()->json(['error' => 'No items selected for checkout'], 400);
             }
             return back()->with('error', 'No items selected for checkout');
+        }
+
+        // Validate that all products are still available
+        foreach ($cartItems as $cartItem) {
+            if (!$cartItem->product) {
+                if ($request->wantsJson() || $request->ajax()) {
+                    return response()->json(['error' => "Product not found for cart item {$cartItem->cart_id}"], 400);
+                }
+                return back()->with('error', 'One or more products are no longer available.');
+            }
+            
+            if (!$cartItem->product->is_active || !$cartItem->product->in_stock) {
+                if ($request->wantsJson() || $request->ajax()) {
+                    return response()->json(['error' => "Product {$cartItem->product->name} is no longer available"], 400);
+                }
+                return back()->with('error', "Product {$cartItem->product->name} is no longer available.");
+            }
+            
+            if ($cartItem->product->manage_stock && $cartItem->quantity > $cartItem->product->stock_quantity) {
+                if ($request->wantsJson() || $request->ajax()) {
+                    return response()->json(['error' => "Insufficient stock for {$cartItem->product->name}"], 400);
+                }
+                return back()->with('error', "Insufficient stock for {$cartItem->product->name}");
+            }
         }
 
         // Get shipping method details
@@ -194,7 +235,7 @@ class CheckoutController extends Controller
 
         // Get address
         $address = Address::where('address_id', $request->address_id)
-            ->where('user_id', auth()->id())
+            ->where('user_id', Auth::user()->user_id)
             ->first();
         
         if (!$address) {
@@ -225,7 +266,7 @@ class CheckoutController extends Controller
 
             // Create order
             $order = new Order();
-            $order->user_id = auth()->id();
+            $order->user_id = Auth::user()->user_id;
             $order->status = 'pending';
             $order->shipping_method = $request->shipping_method;
             $order->shipping_cost = $shippingCost;

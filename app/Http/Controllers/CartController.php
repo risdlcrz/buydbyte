@@ -19,21 +19,30 @@ class CartController extends Controller
 
     public function add(Request $request, Product $product)
     {
-        $request->validate([
-            'quantity' => 'required|integer|min:1'
-        ]);
+        // Validate quantity with manual check to avoid Brick\Math internal class issues
+        $quantity = $request->input('quantity');
+        
+        if (!isset($quantity) || !is_numeric($quantity)) {
+            return back()->with('error', 'Quantity is required and must be a number.');
+        }
+        
+        $quantity = (int) $quantity;
+        
+        if ($quantity < 1) {
+            return back()->with('error', 'Quantity must be at least 1.');
+        }
 
         if (!$product->is_active || !$product->in_stock) {
             return back()->with('error', 'Product is not available.');
         }
 
-        if ($product->manage_stock && $request->quantity > $product->stock_quantity) {
+        if ($product->manage_stock && $quantity > $product->stock_quantity) {
             return back()->with('error', 'Not enough stock available.');
         }
 
         $cartData = [
             'product_id' => $product->product_id,
-            'quantity' => $request->quantity,
+            'quantity' => $quantity,
             'price' => $product->current_price,
         ];
 
@@ -46,7 +55,7 @@ class CartController extends Controller
                 ->first();
 
             if ($existingCart) {
-                $newQuantity = $existingCart->quantity + $request->quantity;
+                $newQuantity = $existingCart->quantity + $quantity;
                 
                 if ($product->manage_stock && $newQuantity > $product->stock_quantity) {
                     return back()->with('error', 'Not enough stock available.');
@@ -65,7 +74,7 @@ class CartController extends Controller
                 ->first();
 
             if ($existingCart) {
-                $newQuantity = $existingCart->quantity + $request->quantity;
+                $newQuantity = $existingCart->quantity + $quantity;
                 
                 if ($product->manage_stock && $newQuantity > $product->stock_quantity) {
                     return back()->with('error', 'Not enough stock available.');
@@ -82,9 +91,18 @@ class CartController extends Controller
 
     public function update(Request $request, Cart $cart)
     {
-        $request->validate([
-            'quantity' => 'required|integer|min:1'
-        ]);
+        // Validate quantity with manual check to avoid Brick\Math internal class issues
+        $quantity = $request->input('quantity');
+        
+        if (!isset($quantity) || !is_numeric($quantity)) {
+            return back()->with('error', 'Quantity is required and must be a number.');
+        }
+        
+        $quantity = (int) $quantity;
+        
+        if ($quantity < 1) {
+            return back()->with('error', 'Quantity must be at least 1.');
+        }
 
         // Verify ownership
         if (Auth::check() && $cart->user_id !== Auth::user()->user_id) {
@@ -95,11 +113,15 @@ class CartController extends Controller
 
         $product = $cart->product;
         
-        if ($product->manage_stock && $request->quantity > $product->stock_quantity) {
+        if (!$product) {
+            return back()->with('error', 'Product not found.');
+        }
+        
+        if ($product->manage_stock && $quantity > $product->stock_quantity) {
             return back()->with('error', 'Not enough stock available.');
         }
 
-        $cart->update(['quantity' => $request->quantity]);
+        $cart->update(['quantity' => $quantity]);
 
         return back()->with('success', 'Cart updated successfully!');
     }
